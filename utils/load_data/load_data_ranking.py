@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
+import pickle
 
 from sklearn.model_selection import train_test_split
 from scipy.sparse import csr_matrix
+import scipy.sparse as sp
 
 
 def load_data_all(path="../data/ml100k/movielens_100k.dat", header=['user_id', 'item_id', 'rating', 'time'],
@@ -157,3 +159,60 @@ def load_data_separately(path_train=None, path_test=None, path_val=None, header=
 
     print("end")
     return train_interaction_matrix, test_dict, n_users, n_items
+
+def load_data_new(path="../data/Amazon-CD/"):
+    print("loading data from: ", path)
+
+    train_file = path + '/train.pkl'
+    test_file = path + '/test.pkl'
+
+    # get number of users and items
+    n_users, n_items = 0, 0
+    n_train, n_test = 0, 0
+    neg_pools = {}
+    exist_users = []
+    train_items, test_set = {}, {}
+
+    train_items = pickle.load(open(train_file, "rb"))
+    test_items = pickle.load(open(test_file, "rb"))
+
+    train_new = []
+    for user, items in train_items.items():
+        for item in items:
+            train_new.append([user, item])
+    train = np.array(train_new).astype(int)
+
+    n_users = np.max(train[:, 0])
+    n_items = np.max(train[:, 1])
+    n_train = train.shape[0]
+
+    exist_users = list(train_items.keys())
+
+    test_new = []
+    for user, items in test_items.items():
+        for item in items:
+            test_new.append([user, item])
+    test = np.array(test_new).astype(int)
+
+    n_users = max(n_users, np.max(test[:, 0])) + 1
+    n_items = max(n_items, np.max(test[:, 1])) + 1
+    n_test = test.shape[0]
+
+    R = sp.dok_matrix((n_users, n_items), dtype=np.float32)
+
+    for user, item in train:
+        R[user, item] = 1.
+
+    train_matrix = R.tocsr()
+
+    R_test = sp.dok_matrix((n_users, n_items), dtype=np.float32)
+
+    for user, item in test:
+        R_test[user, item] = 1.
+
+    test_matrix = R_test.tocsr()
+
+    test_dict = test_items
+
+    print("Load data finished. Number of users:", n_users, "Number of items:", n_items)
+    return train_matrix.todok(), test_dict, n_users, n_items
