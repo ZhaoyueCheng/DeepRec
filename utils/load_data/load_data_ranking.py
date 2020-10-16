@@ -215,4 +215,23 @@ def load_data_new(path="../data/Amazon-CD/"):
     test_dict = test_items
 
     print("Load data finished. Number of users:", n_users, "Number of items:", n_items)
+
     return train_matrix.todok(), test_dict, n_users, n_items
+
+def generate_rating_matrix(train_set, num_users, num_items):
+    # three lists are used to construct sparse matrix
+    row = []
+    col = []
+    data = []
+    for user_id, article_list in enumerate(train_set):
+        for article in article_list:
+            row.append(user_id)
+            col.append(article)
+            data.append(1)
+
+    row = np.array(row)
+    col = np.array(col)
+    data = np.array(data)
+    rating_matrix = csr_matrix((data, (row, col)), shape=(num_users, num_items))
+
+    return rating_matrix

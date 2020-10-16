@@ -9,6 +9,9 @@ import numpy as np
 
 from utils.evaluation.RankingMetrics import *
 
+from tqdm import tqdm
+from tqdm import trange
+
 __author__ = "Yi Tay"
 __copyright__ = "Copyright 2018, The DeepRec Project"
 
@@ -28,9 +31,9 @@ class LRML():
     """
 
     def __init__(self, sess, num_user, num_item, learning_rate=0.1,
-                 reg_rate=0.1, epoch=500, batch_size=500,
-                 verbose=False, T=5, display_step=1000, mode=1,
-                 copy_relations=True, dist='L1', num_mem=100):
+                 reg_rate=0.1, epoch=2000, batch_size=500,
+                 verbose=False, T=100, display_step=1000, mode=1,
+                 copy_relations=True, dist='L1', num_mem=50):
         """ This model takes after the CML structure implemented by Shuai.
         There are several new hyperparameters introduced which are explained
         as follows:
@@ -81,7 +84,7 @@ class LRML():
                     relation = tf.reduce_sum(relation, 2)
         return relation
 
-    def build_network(self, num_factor=100, margin=0.5, norm_clip_value=1):
+    def build_network(self, num_factor=50, margin=1, norm_clip_value=1):
         """ Main computational graph
         """
         # stddev initialize
@@ -126,6 +129,7 @@ class LRML():
 
         self.loss = tf.reduce_sum(tf.maximum(self.pred_distance - self.pred_distance_neg + margin, 0))
 
+        # self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss, var_list=[P, Q])
         self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(self.loss, var_list=[P, Q])
         self.clip_P = tf.assign(P, tf.clip_by_norm(P, norm_clip_value, axes=[1]))
         self.clip_Q = tf.assign(Q, tf.clip_by_norm(Q, norm_clip_value, axes=[1]))
@@ -146,7 +150,11 @@ class LRML():
         self.test_data = test_data
         self.total_batch = int(self.num_training / self.batch_size)
         self.neg_items = self._get_neg_items(train_data.tocsr())
-        self.test_users = set([u for u in self.test_data.keys() if len(self.test_data[u]) > 0])
+        self.test_users = set([u for u in self.test_data.keys() if len(self.test_data[u]) > 0])\
+
+        self.test_dict = test_data
+        self.user_item_csr = train_data.tocsr()
+
         print(self.total_batch)
         print("data preparation finished.")
         return self
@@ -180,7 +188,8 @@ class LRML():
                     print("one iteration: %s seconds." % (time.time() - start_time))
 
     def test(self):
-        evaluate(self)
+        # evaluate(self)
+        evaluate_new(self)
 
     def execute(self, train_data, test_data):
 
@@ -189,9 +198,9 @@ class LRML():
         init = tf.global_variables_initializer()
         self.sess.run(init)
 
-        for epoch in range(self.epochs):
+        for epoch in trange(self.epochs):
             self.train()
-            if (epoch) % self.T == 0:
+            if (epoch) % self.T == 0 and epoch > 0:
                 print("Epoch: %04d; " % (epoch), end="")
                 self.test()
 

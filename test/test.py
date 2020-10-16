@@ -19,7 +19,7 @@ from utils.load_data.load_data_ranking import *
 
 def parse_args():
     parser = argparse.ArgumentParser(description='DeepRec')
-    parser.add_argument('--path', type=str, default='../data/Amazon-CD/')
+    parser.add_argument('--path', type=str, default='../data/yelp/')
     parser.add_argument('--model', choices=['CDAE', 'CML', 'NeuMF', 'GMF', 'MLP', 'BPRMF', 'JRL', 'LRML'],
                         default='LRML')
     parser.add_argument('--epochs', type=int, default=1000)

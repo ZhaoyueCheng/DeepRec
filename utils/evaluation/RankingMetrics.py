@@ -4,6 +4,8 @@ Evaluation Metrics for Top N Recommendation
 """
 
 import numpy as np
+from tqdm import tqdm
+from tqdm import trange
 
 __author__ = "Shuai Zhang"
 __copyright__ = "Copyright 2018, The DeepRec Project"
@@ -79,7 +81,7 @@ def evaluate(self):
     ndcg = []
     ndcg_at_5 = []
     ndcg_at_10 = []
-    for u in self.test_users:
+    for u in (self.test_users):
         user_ids = []
         user_neg_items = self.neg_items[u]
         item_ids = []
@@ -123,3 +125,88 @@ def evaluate(self):
     print("ndcg:" + str(np.mean(ndcg)))
     print("ndcg@5:" + str(np.mean(ndcg_at_5)))
     print("ndcg@10:" + str(np.mean(ndcg_at_10)))
+
+def evaluate_new(self):
+
+    pred_matrix = predict_new(self)
+    precision, recall, ndcg = eval_rec(self, pred_matrix)
+
+    print("------------------------")
+    print("Recall: ")
+    print(recall)
+    print("NDCG: ")
+    print(ndcg)
+
+def predict_new(self):
+    num_users, num_items = self.num_user, self.num_item
+    probs_matrix = np.zeros((num_users, num_items))
+
+    for i in range(num_users):
+        user_ids = [i] * num_items
+        item_ids = list(np.arange(num_items))
+
+        scores = self.predict(user_ids, item_ids)
+        probs_matrix[i] = np.reshape(scores, [-1, ])
+
+    return probs_matrix
+
+def eval_rec(self, pred_matrix):
+    topk = 50
+    pred_matrix[self.user_item_csr.nonzero()] = np.NINF
+    ind = np.argpartition(pred_matrix, -topk)
+    ind = ind[:, -topk:]
+    arr_ind = pred_matrix[np.arange(len(pred_matrix))[:, None], ind]
+    arr_ind_argsort = np.argsort(arr_ind)[np.arange(len(pred_matrix)), ::-1]
+    pred_list = ind[np.arange(len(pred_matrix))[:, None], arr_ind_argsort]
+
+    precision, recall, MAP, ndcg = [], [], [], []
+
+    # ranking = argmax_top_k(pred_matrix, topk)  # Top-K items
+
+    for k in [5, 10, 20]:
+        precision.append(precision_at_k(self.test_dict, pred_list, k))
+        recall.append(recall_at_k(self.test_dict, pred_list, k))
+        # MAP.append(mapk(data.test_dict, pred_list, k))
+
+    all_ndcg = ndcg_lgcn([*self.test_dict.values()], pred_list)
+    ndcg = [all_ndcg[x - 1] for x in [5, 10, 20]]
+
+    return precision, recall, ndcg
+
+def precision_at_k(actual, predicted, topk):
+    sum_precision = 0.0
+    num_users = len(actual)
+    for i, v in actual.items():
+        act_set = set(v)
+        pred_set = set(predicted[i][:topk])
+        sum_precision += len(act_set & pred_set) / float(topk)
+    return sum_precision / num_users
+
+def recall_at_k(actual, predicted, topk):
+    sum_recall = 0.0
+    num_users = len(actual)
+    true_users = 0
+    for i, v in actual.items():
+        act_set = set(v)
+        pred_set = set(predicted[i][:topk])
+        if len(act_set) != 0:
+            sum_recall += len(act_set & pred_set) / float(len(act_set))
+            true_users += 1
+    assert num_users == true_users
+    return sum_recall / true_users
+
+def ndcg_lgcn(ground_truths, ranks):
+    result = 0
+    for i, (rank, ground_truth) in enumerate(zip(ranks, ground_truths)):
+        len_rank = len(rank)
+        len_gt = len(ground_truth)
+        idcg_len = min(len_gt, len_rank)
+
+        # calculate idcg
+        idcg = np.cumsum(1.0 / np.log2(np.arange(2, len_rank + 2)))
+        idcg[idcg_len:] = idcg[idcg_len-1]
+
+        # idcg = np.cumsum(1.0/np.log2(np.arange(2, len_rank+2)))
+        dcg = np.cumsum([1.0/np.log2(idx+2) if item in ground_truth else 0.0 for idx, item in enumerate(rank)])
+        result += dcg / idcg
+    return result / len(ranks)
